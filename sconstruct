@@ -1,0 +1,43 @@
+#!/usr/bin/python
+
+# Options.
+AddOption(
+    '--mode',
+    choices=['debug', 'release'],
+    default='debug',
+    help='choose a build mode')
+AddOption(
+    '--test',
+    action='store_true',
+    help='Compile and execute unit tests.')
+
+# Our mode.
+mode = GetOption('mode')
+
+# Paths.
+root = Dir('#')
+src = root.Dir('Src')
+out = root.Dir('Out').Dir(mode.title())
+
+# Environment.
+env = Environment(CC='clang',
+                  CXX='clang++',
+                  CPPPATH=[src],
+                  CCFLAGS=['-Wall', '-Werror', '-Wextra'],
+                  CXXFLAGS=['-std=c++11'],
+                  TESTSUFFIX='.test')
+
+# Append 'mode' specific environment variables.
+{'debug'  : lambda: env.AppendUnique(CCFLAGS=['-g']),
+ 'release': lambda: env.AppendUnique(CCFLAGS=['-O2', '-DNDEBUG'])
+}[mode]()
+
+# Don't build anything by default.
+Default()
+
+# Export variables.
+Export(['env', 'src'])
+
+# Run the SConscript file.
+env.SConscript(src.File('.sconscript'), variant_dir=out, duplicate=False)
+
