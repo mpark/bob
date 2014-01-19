@@ -23,7 +23,7 @@ out = root.Dir('Out').Dir(mode.title())
 env = Environment(CC='clang',
                   CXX='clang++',
                   CPPPATH=[src],
-                  CCFLAGS=['-Wall', '-Werror', '-Wextra'],
+                  CCFLAGS=['-fcolor-diagnostics', '-Wall', '-Werror', '-Wextra'],
                   CXXFLAGS=['-std=c++11'],
                   TESTSUFFIX='.test')
 
