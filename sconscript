@@ -2,6 +2,8 @@
 
 import functools
 import os.path
+import subprocess
+
 import SCons.Scanner.C
 
 # Import variables.
@@ -14,8 +16,8 @@ scanner = SCons.Scanner.C.CScanner()
 cwd = Dir(Dir(GetLaunchDir()).get_path(src))
 
 # Recursively find all of the source files that main depends on.
-def get_dep_sources(main):
-  def impl(sources, out):
+def get_dep_objects(main):
+  def get_dep_sources(sources, out):
     if not sources:
       return out
     out |= sources
@@ -25,8 +27,8 @@ def get_dep_sources(main):
         dep_source = File(os.path.splitext(dep_header.get_path(src))[0] + '.cc')
         if dep_source.srcnode().exists() and dep_source not in out:
           dep_sources.add(dep_source)
-    return impl(dep_sources, out)
-  return list(impl({main}, set()))
+    return get_dep_sources(dep_sources, out)
+  return [env.Object(source) for source in get_dep_sources({main}, set())]
 
 # List of valid extensions to try to build.
 exts = [env[suffix] for suffix in ['PROGSUFFIX',
@@ -36,24 +38,35 @@ exts = [env[suffix] for suffix in ['PROGSUFFIX',
                                    'SHOBJSUFFIX',
                                    'TESTSUFFIX']]
 
-for target in BUILD_TARGETS:
-  root, ext = os.path.splitext(target)  # Split root and ext of target.
+for target_path in BUILD_TARGETS:
+  target = cwd.File(target_path)
+  root, ext = os.path.splitext(target_path)  # root and ext of target_path.
   if ext not in exts:
     raise ValueError(
-        "Invalid extension: '{ext}' (choose from {exts})".format(
+        'Invalid extension: "{ext}" (choose from {exts})'.format(
           ext=ext,
-          exts=', '.join(["'{ext}'".format(ext=ext) for ext in exts])))
-  main = cwd.File((target if ext == env['TESTSUFFIX'] else root) + '.cc')
-  sources = get_dep_sources(main)
-  # Choose the correct builder based on the target's extension.
-  node = {env['PROGSUFFIX'] : env.Program,
-          env['LIBSUFFIX']  : env.StaticLibrary,
-          env['SHLIBSUFFIX']: env.SharedLibrary,
-          env['OBJSUFFIX']  : env.StaticObject,
-          env['SHOBJSUFFIX']: env.SharedObject,
-          env['TESTSUFFIX'] : functools.partial(
-                                env.Program,
-                                LIBS=['gtest', 'gtest_main', 'pthread'])
-         }[ext](cwd.File(target), sources)
-  env.Alias(target, node)
+          exts=', '.join(['"{ext}"'.format(ext=ext) for ext in exts])))
+  main = cwd.File((target_path if ext == env['TESTSUFFIX'] else root) + '.cc')
+  objects = get_dep_objects(main)
+  # Choose the correct builder based on the target_path's extension.
+  {env['PROGSUFFIX'] : env.Program,
+   env['LIBSUFFIX']  : env.StaticLibrary,
+   env['SHLIBSUFFIX']: env.SharedLibrary,
+   env['OBJSUFFIX']  : env.StaticObject,
+   env['SHOBJSUFFIX']: env.SharedObject,
+   env['TESTSUFFIX'] : functools.partial(
+                           env.Program,
+                           LIBS=['gtest', 'gtest_main', 'pthread'])
+  }[ext](target, objects)
+  test = None
+  # If target is a unit test, execute it.
+  if GetOption('test') and ext == env['TESTSUFFIX']:
+    def run_test(target, source, env):
+      for test in source:
+        subprocess.check_call(test.get_path())
+    test = env.Command(
+               None,
+               target,
+               Action(run_test, 'Running unit test: $SOURCE'))
+  env.Alias(target_path, [target, test])
 
