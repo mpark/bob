@@ -16,15 +16,15 @@ mode = GetOption('mode')
 
 # Paths.
 root = Dir('#')
-src = root.Dir('Src')
-out = root.Dir('Out').Dir(mode.title())
+src = root.Dir('src')
+out = root.Dir('out').Dir(mode)
 
 # Environment.
-env = Environment(CC='clang',
-                  CXX='clang++',
+env = Environment(CC='gcc',
+                  CXX='g++',
                   CPPPATH=[src],
-                  CCFLAGS=['-fcolor-diagnostics', '-Wall', '-Werror', '-Wextra'],
-                  CXXFLAGS=['-std=c++11'],
+                  CCFLAGS=['-fdiagnostics-color', '-Wall', '-Werror', '-Wextra'],
+                  CXXFLAGS=['-std=c++14'],
                   TESTSUFFIX='.test')
 
 # Append 'mode' specific environment variables.
