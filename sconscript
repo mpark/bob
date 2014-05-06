@@ -15,26 +15,18 @@ scanner = SCons.Scanner.C.CScanner()
 # Current working directory.
 cwd = Dir(Dir(GetLaunchDir()).get_path(src))
 
-# C++ extensions.
-cpp_exts = {env[suffix] for suffix in {'PROGSUFFIX',
-                                       'LIBSUFFIX',
-                                       'SHLIBSUFFIX',
-                                       'OBJSUFFIX',
-                                       'SHOBJSUFFIX',
-                                       'TESTSUFFIX'}}
-
-# PDF extension.
-pdf_ext = env['PDFSUFFIX']
-
-# Unit test.
-test_ext = env['TESTSUFFIX']
-
-# List of supported extensions.
-exts = cpp_exts | {pdf_ext} | {test_ext}
+# Set of supported extensions.
+exts = {env[suffix] for suffix in {'PROGSUFFIX',
+                                   'LIBSUFFIX',
+                                   'SHLIBSUFFIX',
+                                   'OBJSUFFIX',
+                                   'SHOBJSUFFIX',
+                                   'TESTSUFFIX',
+                                   'PDFSUFFIX'}}
 
 # Recursively find all of the object files that main depends on.
-def get_dep_objects(main):
-  def get_dep_sources(sources, out):
+def get_dep_sources(main):
+  def impl(sources, out):
     if not sources:
       return out
     out |= sources
@@ -44,8 +36,8 @@ def get_dep_objects(main):
         dep_source = File(os.path.splitext(dep_header.get_path(src))[0] + '.cc')
         if dep_source.srcnode().exists() and dep_source not in out:
           dep_sources.add(dep_source)
-    return get_dep_sources(dep_sources, out)
-  return [env.Object(source) for source in get_dep_sources({main}, set())]
+    return impl(dep_sources, out)
+  return [source for source in impl({main}, set())]
 
 # Execute the test and check that the return code is 0.
 def run_test(target, source, env):
@@ -63,29 +55,31 @@ for target_path in BUILD_TARGETS:
           ext=ext,
           exts=', '.join(['"{ext}"'.format(ext=ext) for ext in exts])))
   # Get the corresponding source files.
-  source = None
-  if ext == pdf_ext:
-    source = cwd.File(root + '.latex')
-  elif ext in cpp_exts:
-    source = get_dep_objects(
-                cwd.File(root + (test_ext if ext == test_ext else '') + '.cc'))
+  source = {env['PROGSUFFIX'] : lambda: get_dep_sources(cwd.File(root + '.cc')),
+            env['LIBSUFFIX']  : lambda: cwd.File(root + '.cc'),
+            env['SHLIBSUFFIX']: lambda: cwd.File(root + '.cc'),
+            env['OBJSUFFIX']  : lambda: cwd.File(root + '.cc'),
+            env['SHOBJSUFFIX']: lambda: cwd.File(root + '.cc'),
+            env['PDFSUFFIX']  : lambda: cwd.File(root + '.latex'),
+            env['TESTSUFFIX'] : lambda: get_dep_sources(cwd.File(root + '.test.cc'))
+            }[ext]()
+  boost = ['boost_filesystem', 'boost_regex', 'boost_system']
+  gtest = ['gtest', 'gtest_main', 'pthread']
   # Choose the correct builder based on the target_path's extension.
-  {env['PROGSUFFIX'] : env.Program,
+  {env['PROGSUFFIX'] : functools.partial(env.Program, LIBS=boost),
    env['LIBSUFFIX']  : env.Library,
    env['SHLIBSUFFIX']: env.SharedLibrary,
    env['OBJSUFFIX']  : env.Object,
    env['SHOBJSUFFIX']: env.SharedObject,
    env['PDFSUFFIX']  : env.PDF,
-   env['TESTSUFFIX'] : functools.partial(
-                           env.Program,
-                           LIBS=['gtest', 'gtest_main', 'pthread'])
+   env['TESTSUFFIX'] : functools.partial(env.Program, LIBS=boost+gtest)
   }[ext](target, source)
   # If target is a unit test, execute it.
   test = None
-  if GetOption('test') and ext == test_ext:
+  if GetOption('test') and ext == env['TESTSUFFIX']:
     test = env.Command(
                None,
                target,
-               Action(run_test, 'Running unit test: $SOURCE'))
+               Action(run_test, 'Running test: $SOURCE'))
   env.Alias(target_path, [target, test])
 
