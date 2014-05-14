@@ -20,11 +20,11 @@ src = root.Dir('src')
 out = root.Dir('out').Dir(mode)
 
 # Environment.
-env = Environment(CC='gcc',
-                  CXX='g++',
+env = Environment(CC='clang',
+                  CXX='clang++',
                   CPPPATH=[src],
-                  CCFLAGS=['-fdiagnostics-color', '-Wall', '-Werror', '-Wextra'],
-                  CXXFLAGS=['-std=c++14'],
+                  CCFLAGS=['-fcolor-diagnostics', '-Wall', '-Werror', '-Wextra'],
+                  CXXFLAGS=['-std=c++1y'],
                   TESTSUFFIX='.test')
 
 # Append 'mode' specific environment variables.
