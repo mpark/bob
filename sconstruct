@@ -24,7 +24,7 @@ env = Environment(CC='clang',
                   CXX='clang++',
                   CPPPATH=[src],
                   CCFLAGS=['-fcolor-diagnostics', '-Wall', '-Werror', '-Wextra'],
-                  CXXFLAGS=['-std=c++1y'],
+                  CXXFLAGS=['-std=c++1y', '-ftemplate-depth=1024'],
                   TESTSUFFIX='.test')
 
 # Append 'mode' specific environment variables.
